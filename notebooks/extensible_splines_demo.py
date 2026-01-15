@@ -13,13 +13,13 @@ __generated_with = "0.13.15"
 app = marimo.App()
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _():
     import marimo as mo
     return (mo,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     mo.md(
         r"""
@@ -41,7 +41,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     num_points = mo.ui.slider(
         start=4,
@@ -54,14 +54,14 @@ def _(mo):
     return (num_points,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _():
     import numpy as np
     import matplotlib.pyplot as plt
     return np, plt
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(num_points, np, plt):
     def bspline_basis(i, k, t, knots):
         """Compute B-spline basis function recursively."""
@@ -120,7 +120,7 @@ def _(num_points, np, plt):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     mo.md(
         r"""
