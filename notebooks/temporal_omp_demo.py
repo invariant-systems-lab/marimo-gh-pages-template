@@ -312,8 +312,8 @@ def _(N, coef, idx, np, plt, series, support, target):
     # Plot 4: Temporal weights
     ax4 = axes[1, 1]
     w = 1.0 + 0.02 * np.arange(N)
-    ax4.plot(frames, w[:-1], 'b-', linewidth=2, label='Temporal weight w_t')
-    ax4.fill_between(frames, 1, w[:-1], alpha=0.3)
+    ax4.plot(frames, w, 'b-', linewidth=2, label='Temporal weight w_t')
+    ax4.fill_between(frames, 1, w, alpha=0.3)
     ax4.scatter(support, w[support], color='purple', s=150, zorder=5, marker='o',
                 edgecolors='black', linewidths=2, label='Selected frames')
     ax4.set_xlabel('Frame Index')
