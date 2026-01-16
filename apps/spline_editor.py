@@ -48,12 +48,11 @@ def _(mo):
 
 
 @app.cell(hide_code=True)
-def _(mo, num_points):
+def _(mo, np, num_points):
     # Create sliders for X and Y coordinates of each control point
     n = num_points.value
 
     # Default positions in a circular pattern
-    import numpy as np
     angles = np.linspace(0, 2 * np.pi * 0.85, n)
     default_x = 350 + 200 * np.cos(angles)
     default_y = 300 + 200 * np.sin(angles)
@@ -126,7 +125,7 @@ def _(np, x_sliders, y_sliders, n):
     ])
 
     curve_points = evaluate_bspline(control_points)
-    return control_points, curve_points, bspline_basis, evaluate_bspline
+    return control_points, curve_points
 
 
 @app.cell(hide_code=True)
@@ -202,7 +201,8 @@ def _(mo):
         evaluates the basis functions at each parameter value.
 
         [View on GitHub](https://github.com/egoughnour/extensible-splines) |
-        [Back to Portfolio](https://erikgoughnour.com)
+        [Back to Portfolio](https://erikgoughnour.com) |
+        [More Notebooks](https://invariant-systems-lab.github.io/marimo-gh-pages-template/)
         """
     )
     return
