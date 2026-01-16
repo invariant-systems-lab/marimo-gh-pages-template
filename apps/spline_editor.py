@@ -16,8 +16,7 @@ app = marimo.App(width="medium")
 def _():
     import marimo as mo
     import numpy as np
-    import json
-    return mo, np, json
+    return mo, np
 
 
 @app.cell(hide_code=True)
@@ -26,8 +25,8 @@ def _(mo):
         r"""
         # Interactive B-Spline Editor
 
-        **Click** on the canvas to add control points. **Drag** points to move them.
-        **Double-click** a point to delete it. The B-spline curve updates in real-time.
+        Use the sliders below to adjust control point positions.
+        The B-spline curve updates in real-time.
 
         *Powered by [extensible-splines](https://github.com/egoughnour/extensible-splines)*
         """
@@ -37,22 +36,54 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    # Initialize with some default points
-    default_points = [
-        {"x": 100, "y": 300},
-        {"x": 200, "y": 100},
-        {"x": 400, "y": 100},
-        {"x": 500, "y": 300},
-        {"x": 400, "y": 500},
-        {"x": 200, "y": 500},
-    ]
-
-    points_state = mo.state(default_points)
-    return default_points, points_state
+    num_points = mo.ui.slider(
+        start=4,
+        stop=10,
+        step=1,
+        value=6,
+        label="Number of Control Points"
+    )
+    num_points
+    return (num_points,)
 
 
 @app.cell(hide_code=True)
-def _(mo, np, json, points_state):
+def _(mo, num_points):
+    # Create sliders for X and Y coordinates of each control point
+    n = num_points.value
+
+    # Default positions in a circular pattern
+    import numpy as np
+    angles = np.linspace(0, 2 * np.pi * 0.85, n)
+    default_x = 350 + 200 * np.cos(angles)
+    default_y = 300 + 200 * np.sin(angles)
+
+    x_sliders = [
+        mo.ui.slider(start=50, stop=650, value=int(default_x[i]), label=f"P{i+1} X")
+        for i in range(n)
+    ]
+    y_sliders = [
+        mo.ui.slider(start=50, stop=550, value=int(default_y[i]), label=f"P{i+1} Y")
+        for i in range(n)
+    ]
+
+    # Display sliders in a compact grid
+    slider_rows = []
+    for i in range(n):
+        slider_rows.append(
+            mo.hstack([
+                mo.md(f"**Point {i+1}:**"),
+                x_sliders[i],
+                y_sliders[i]
+            ], gap="1rem", align="center")
+        )
+
+    mo.vstack(slider_rows, gap="0.5rem")
+    return x_sliders, y_sliders, n
+
+
+@app.cell(hide_code=True)
+def _(np, x_sliders, y_sliders, n):
     def bspline_basis(i, k, t, knots):
         """Compute B-spline basis function recursively (Cox-de Boor)."""
         if k == 0:
@@ -68,47 +99,61 @@ def _(mo, np, json, points_state):
 
     def evaluate_bspline(control_points, num_samples=150):
         """Evaluate a cubic B-spline curve."""
-        n = len(control_points)
-        if n < 4:
+        num_pts = len(control_points)
+        if num_pts < 4:
             return []
 
         k = 3  # cubic
-        knots = [0] * (k + 1) + list(range(1, n - k)) + [n - k] * (k + 1)
+        knots = [0] * (k + 1) + list(range(1, num_pts - k)) + [num_pts - k] * (k + 1)
         knots = [float(x) for x in knots]
 
-        t_vals = np.linspace(knots[k], knots[n] - 0.0001, num_samples)
+        t_vals = np.linspace(knots[k], knots[num_pts] - 0.0001, num_samples)
         curve = []
 
         for t in t_vals:
             point = np.zeros(2)
-            for i in range(n):
+            for i in range(num_pts):
                 basis = bspline_basis(i, k, t, knots)
-                point += basis * np.array([control_points[i]["x"], control_points[i]["y"]])
-            curve.append({"x": point[0], "y": point[1]})
+                point += basis * control_points[i]
+            curve.append(point)
 
         return curve
 
-    points = points_state.value
-    curve_points = evaluate_bspline(points)
+    # Get control points from sliders
+    control_points = np.array([
+        [x_sliders[i].value, y_sliders[i].value]
+        for i in range(n)
+    ])
 
+    curve_points = evaluate_bspline(control_points)
+    return control_points, curve_points, bspline_basis, evaluate_bspline
+
+
+@app.cell(hide_code=True)
+def _(mo, control_points, curve_points, n):
     # Generate SVG path for the curve
     curve_path = ""
     if len(curve_points) > 1:
-        curve_path = f"M {curve_points[0]['x']} {curve_points[0]['y']} "
+        curve_path = f"M {curve_points[0][0]:.1f} {curve_points[0][1]:.1f} "
         for pt in curve_points[1:]:
-            curve_path += f"L {pt['x']} {pt['y']} "
+            curve_path += f"L {pt[0]:.1f} {pt[1]:.1f} "
 
     # Generate control polygon path
     polygon_path = ""
-    if len(points) > 1:
-        polygon_path = f"M {points[0]['x']} {points[0]['y']} "
-        for pt in points[1:]:
-            polygon_path += f"L {pt['x']} {pt['y']} "
+    if len(control_points) > 1:
+        polygon_path = f"M {control_points[0][0]:.1f} {control_points[0][1]:.1f} "
+        for pt in control_points[1:]:
+            polygon_path += f"L {pt[0]:.1f} {pt[1]:.1f} "
 
-    # The interactive canvas using HTML/JS
+    # Generate control point circles
+    circles = "".join(
+        f'<circle cx="{control_points[i][0]:.1f}" cy="{control_points[i][1]:.1f}" r="8" fill="#14b8a6" stroke="#fff" stroke-width="2"/><text x="{control_points[i][0]:.1f}" y="{control_points[i][1] - 15:.1f}" text-anchor="middle" fill="#94a3b8" font-size="11" font-family="Inter, sans-serif">P{i+1}</text>'
+        for i in range(n)
+    )
+
     canvas_html = f"""
-    <div style="display: flex; flex-direction: column; align-items: center; gap: 1rem;">
-        <svg id="spline-canvas" width="700" height="600" style="background: #1e293b; border-radius: 12px; cursor: crosshair;">
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 1rem; margin-top: 1rem;">
+        <svg width="700" height="600" style="background: #1e293b; border-radius: 12px;">
             <!-- Grid -->
             <defs>
                 <pattern id="grid" width="50" height="50" patternUnits="userSpaceOnUse">
@@ -124,139 +169,18 @@ def _(mo, np, json, points_state):
             <path d="{curve_path}" fill="none" stroke="#6366f1" stroke-width="3" stroke-linecap="round"/>
 
             <!-- Control points -->
-            <g id="control-points">
-                {"".join(f'<circle cx="{pt["x"]}" cy="{pt["y"]}" r="10" fill="#14b8a6" stroke="#fff" stroke-width="2" class="control-point" data-index="{i}" style="cursor: grab;"/>' for i, pt in enumerate(points))}
-            </g>
-
-            <!-- Instructions overlay -->
-            <text x="350" y="580" text-anchor="middle" fill="#64748b" font-size="12" font-family="Inter, sans-serif">
-                Click to add points | Drag to move | Double-click to delete
-            </text>
+            {circles}
         </svg>
 
         <div style="display: flex; gap: 1rem; align-items: center;">
-            <span style="color: #94a3b8; font-size: 14px;">Control Points: <strong style="color: #14b8a6;">{len(points)}</strong></span>
+            <span style="color: #94a3b8; font-size: 14px;">Control Points: <strong style="color: #14b8a6;">{n}</strong></span>
             <span style="color: #94a3b8; font-size: 14px;">|</span>
-            <span style="color: #94a3b8; font-size: 14px;">Curve: <strong style="color: #6366f1;">Cubic B-Spline</strong></span>
-            <span style="color: #94a3b8; font-size: 14px;">|</span>
-            <span style="color: #94a3b8; font-size: 14px; opacity: {1 if len(points) >= 4 else 0.5};">{"Curve visible" if len(points) >= 4 else "Need 4+ points for curve"}</span>
+            <span style="color: #94a3b8; font-size: 14px;">Curve: <strong style="color: #6366f1;">Cubic B-Spline (C² continuous)</strong></span>
         </div>
     </div>
-
-    <script>
-    (function() {{
-        const svg = document.getElementById('spline-canvas');
-        const pointsGroup = document.getElementById('control-points');
-        let points = {json.dumps(points)};
-        let dragIndex = -1;
-        let dragOffset = {{x: 0, y: 0}};
-        let lastClickTime = 0;
-
-        function getSVGPoint(e) {{
-            const rect = svg.getBoundingClientRect();
-            return {{
-                x: e.clientX - rect.left,
-                y: e.clientY - rect.top
-            }};
-        }}
-
-        function updateMarimo() {{
-            // Send updated points back to marimo via the anywidget protocol
-            const event = new CustomEvent('marimo:state-update', {{
-                detail: {{ points: points }},
-                bubbles: true
-            }});
-            svg.dispatchEvent(event);
-        }}
-
-        svg.addEventListener('mousedown', function(e) {{
-            const target = e.target;
-            const now = Date.now();
-
-            if (target.classList.contains('control-point')) {{
-                const index = parseInt(target.dataset.index);
-
-                // Check for double-click (delete)
-                if (now - lastClickTime < 300 && points.length > 2) {{
-                    points.splice(index, 1);
-                    updateMarimo();
-                    location.reload(); // Trigger re-render
-                    return;
-                }}
-                lastClickTime = now;
-
-                // Start dragging
-                dragIndex = index;
-                const pt = getSVGPoint(e);
-                dragOffset = {{
-                    x: points[index].x - pt.x,
-                    y: points[index].y - pt.y
-                }};
-                target.style.cursor = 'grabbing';
-                e.preventDefault();
-            }}
-        }});
-
-        svg.addEventListener('mousemove', function(e) {{
-            if (dragIndex >= 0) {{
-                const pt = getSVGPoint(e);
-                points[dragIndex].x = Math.max(10, Math.min(690, pt.x + dragOffset.x));
-                points[dragIndex].y = Math.max(10, Math.min(590, pt.y + dragOffset.y));
-
-                // Update circle position directly for smooth feedback
-                const circle = pointsGroup.children[dragIndex];
-                circle.setAttribute('cx', points[dragIndex].x);
-                circle.setAttribute('cy', points[dragIndex].y);
-            }}
-        }});
-
-        svg.addEventListener('mouseup', function(e) {{
-            if (dragIndex >= 0) {{
-                const circle = pointsGroup.children[dragIndex];
-                circle.style.cursor = 'grab';
-                dragIndex = -1;
-                updateMarimo();
-                location.reload(); // Trigger re-render with new curve
-            }}
-        }});
-
-        svg.addEventListener('click', function(e) {{
-            // Only add point if clicking on empty space
-            if (!e.target.classList.contains('control-point') && dragIndex < 0) {{
-                const pt = getSVGPoint(e);
-                points.push({{x: pt.x, y: pt.y}});
-                updateMarimo();
-                location.reload(); // Trigger re-render
-            }}
-        }});
-    }})();
-    </script>
     """
 
     mo.Html(canvas_html)
-    return
-
-
-@app.cell(hide_code=True)
-def _(mo, points_state):
-    # Buttons for reset and clear
-    def reset_points():
-        points_state.set_value([
-            {"x": 100, "y": 300},
-            {"x": 200, "y": 100},
-            {"x": 400, "y": 100},
-            {"x": 500, "y": 300},
-            {"x": 400, "y": 500},
-            {"x": 200, "y": 500},
-        ])
-
-    def clear_points():
-        points_state.set_value([])
-
-    reset_btn = mo.ui.button(label="Reset to Default", on_click=lambda _: reset_points())
-    clear_btn = mo.ui.button(label="Clear All", on_click=lambda _: clear_points())
-
-    mo.hstack([reset_btn, clear_btn], justify="center", gap="1rem")
     return
 
 
@@ -271,7 +195,7 @@ def _(mo):
         B-splines (Basis splines) are piecewise polynomial curves with several important properties:
 
         - **Local control**: Moving one control point only affects the curve nearby
-        - **Smoothness**: Cubic B-splines have C2 continuity (smooth curvature)
+        - **Smoothness**: Cubic B-splines have C² continuity (smooth curvature)
         - **Convex hull**: The curve stays within the convex hull of control points
 
         The curve is computed using the **Cox-de Boor recursion formula**, which efficiently
